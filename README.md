@@ -1,5 +1,7 @@
 # FloodWatch Agent
 
+![FloodWatch](floodWatch.png)
+
 A conversational agent that fetches real-time and historical flood data for **any US city or region** and generates an interactive map in your browser. Powered by Qwen3.5 9B via Ollama and LangChain.
 
 ## Data sources
