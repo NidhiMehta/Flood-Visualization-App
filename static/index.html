@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FloodWatch — US Flood Monitor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #0f1923;
+    color: #e2e8f0;
+  }
+
+  /* ── Header ── */
+  header {
+    flex-shrink: 0;
+    background: #0f1923;
+    border-bottom: 1px solid #1e3a5f;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo { font-size: 1.6rem; line-height: 1; }
+  .brand h1 { font-size: 1.1rem; font-weight: 700; color: #60a5fa; letter-spacing: .02em; }
+  .brand p  { font-size: .75rem; color: #64748b; margin-top: 1px; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #374151;
+    margin-left: auto;
+    transition: background .3s;
+  }
+  .status-dot.connected    { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .status-dot.thinking     { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; animation: pulse 1s infinite; }
+  .status-label { font-size: .72rem; color: #64748b; margin-left: 6px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── Main two-panel layout ── */
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Chat panel ── */
+  #chat-panel {
+    width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #1e3a5f;
+    background: #111827;
+  }
+
+  #chat-panel h2 {
+    flex-shrink: 0;
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #475569;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid #1e2d3d;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 4px; }
+
+  .msg {
+    font-size: .82rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: #1d4ed8;
+    color: #eff6ff;
+    padding: 7px 12px;
+    border-radius: 14px 14px 3px 14px;
+    max-width: 90%;
+    margin: 6px 0 2px;
+    font-family: inherit;
+  }
+  .msg.agent {
+    color: #cbd5e1;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: .78rem;
+  }
+  .msg.status {
+    color: #475569;
+    font-style: italic;
+    font-size: .74rem;
+  }
+  .msg.map-notice {
+    align-self: center;
+    background: #064e3b;
+    color: #6ee7b7;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: .75rem;
+    margin: 6px 0;
+  }
+
+  /* ── Quick-start chips ── */
+  #suggestions {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-top: 1px solid #1e2d3d;
+  }
+  .chip {
+    background: #1e2d3d;
+    border: 1px solid #1e3a5f;
+    color: #93c5fd;
+    font-size: .72rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .chip:hover { background: #1e3a5f; }
+
+  /* ── Input row ── */
+  #input-row {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid #1e2d3d;
+    background: #0f1923;
+  }
+  #user-input {
+    flex: 1;
+    background: #1e2d3d;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 16px 18px;
+    color: #e2e8f0;
+    font-size: 1.1rem;
+    outline: none;
+    transition: border-color .15s;
+    height: 64px;
+  }
+  #user-input::placeholder { color: #475569; }
+  #user-input:focus { border-color: #3b82f6; }
+  #send-btn {
+    background: #1d4ed8;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 16px 24px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+    height: 64px;
+  }
+  #send-btn:hover:not(:disabled) { background: #2563eb; }
+  #send-btn:disabled { background: #1e3a5f; color: #475569; cursor: not-allowed; }
+
+  /* ── Map panel ── */
+  #map-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #0f1923;
+  }
+  #map-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid #1e3a5f;
+    gap: 10px;
+  }
+  #map-toolbar span {
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #475569;
+    flex: 1;
+  }
+  #map-badge {
+    font-size: .7rem;
+    background: #064e3b;
+    color: #6ee7b7;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: none;
+  }
+  #refresh-btn {
+    background: #1e2d3d;
+    border: 1px solid #1e3a5f;
+    color: #93c5fd;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: .75rem;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  #refresh-btn:hover { background: #1e3a5f; }
+  #map-frame {
+    flex: 1;
+    border: none;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">&#128167;</div>
+  <div class="brand">
+    <h1>FloodWatch</h1>
+    <p>US flood monitor — any region · Qwen3.5 9B</p>
+  </div>
+  <div class="status-dot" id="status-dot"></div>
+  <span class="status-label" id="status-label">Connecting…</span>
+</header>
+
+<main>
+  <!-- Map panel -->
+  <section id="map-panel">
+    <div id="map-toolbar">
+      <span>Flood Map</span>
+      <span id="map-badge">&#10003; Updated</span>
+      <button id="refresh-btn" onclick="refreshMap()">&#8635; Refresh</button>
+    </div>
+    <iframe id="map-frame" src="/map" title="Flood map"></iframe>
+  </section>
+
+  <!-- Chat panel -->
+  <section id="chat-panel">
+    <h2>Agent Chat</h2>
+    <div id="messages"></div>
+    <div id="suggestions">
+      <button class="chip" onclick="send('Show current flood conditions in Dallas')">Dallas now</button>
+      <button class="chip" onclick="send('Show current flood conditions in Houston, TX')">Houston now</button>
+      <button class="chip" onclick="send('Show where it flooded in Dallas last week')">Dallas last week</button>
+      <button class="chip" onclick="send('Show where it flooded in Houston last week')">Houston last week</button>
+    </div>
+    <div id="input-row">
+      <input id="user-input" type="text" placeholder="Ask about floods anywhere in the US…" autocomplete="off"/>
+      <button id="send-btn" disabled>Send</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const messagesEl  = document.getElementById('messages');
+  const inputEl     = document.getElementById('user-input');
+  const sendBtn     = document.getElementById('send-btn');
+  const statusDot   = document.getElementById('status-dot');
+  const statusLabel = document.getElementById('status-label');
+  const mapFrame    = document.getElementById('map-frame');
+  const mapBadge    = document.getElementById('map-badge');
+
+  let ws = null;
+  let agentBuffer = null;   // current streaming agent line element
+  let waiting = false;
+
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.onopen = () => {
+      setStatus('connected', 'Connected');
+      sendBtn.disabled = false;
+    };
+
+    ws.onclose = () => {
+      setStatus('', 'Disconnected');
+      sendBtn.disabled = true;
+      agentBuffer = null;
+      // Reconnect after 3 s
+      setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+
+    ws.onmessage = (evt) => {
+      const data = JSON.parse(evt.data);
+      switch (data.type) {
+        case 'output':
+          appendAgent(data.text);
+          break;
+        case 'status':
+          appendStatus(data.text);
+          break;
+        case 'waiting_for_input':
+          waiting = true;
+          agentBuffer = null;
+          setStatus('connected', 'Ready');
+          sendBtn.disabled = false;
+          break;
+        case 'map_updated':
+          agentBuffer = null;
+          refreshMap();
+          appendMapNotice('Map updated — panel refreshed');
+          break;
+        case 'done':
+          agentBuffer = null;
+          setStatus('connected', 'Ready');
+          sendBtn.disabled = false;
+          break;
+        case 'error':
+          appendStatus('Error: ' + data.text);
+          break;
+      }
+    };
+  }
+
+  // ── Status helpers ─────────────────────────────────────────────────────────
+  function setStatus(cls, label) {
+    statusDot.className = 'status-dot' + (cls ? ' ' + cls : '');
+    statusLabel.textContent = label;
+  }
+
+  // ── Message rendering ──────────────────────────────────────────────────────
+  function appendAgent(text) {
+    // Accumulate streaming tokens into a single element per "paragraph"
+    if (!agentBuffer) {
+      agentBuffer = document.createElement('div');
+      agentBuffer.className = 'msg agent';
+      messagesEl.appendChild(agentBuffer);
+    }
+    agentBuffer.textContent += text;
+    // Start a new buffer on blank lines
+    if (text.trim() === '') agentBuffer = null;
+    scrollDown();
+  }
+
+  function appendStatus(text) {
+    agentBuffer = null;
+    const el = document.createElement('div');
+    el.className = 'msg status';
+    el.textContent = text.trim();
+    messagesEl.appendChild(el);
+    scrollDown();
+  }
+
+  function appendUser(text) {
+    agentBuffer = null;
+    const el = document.createElement('div');
+    el.className = 'msg user';
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    scrollDown();
+  }
+
+  function appendMapNotice(text) {
+    const el = document.createElement('div');
+    el.className = 'msg map-notice';
+    el.textContent = '🗺 ' + text;
+    messagesEl.appendChild(el);
+    scrollDown();
+  }
+
+  function scrollDown() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // ── Map refresh ────────────────────────────────────────────────────────────
+  function refreshMap() {
+    const url = '/map?t=' + Date.now();
+    mapFrame.src = 'about:blank';
+    setTimeout(() => { mapFrame.src = url; }, 80);
+    mapBadge.style.display = 'inline';
+    setTimeout(() => { mapBadge.style.display = 'none'; }, 4000);
+  }
+
+  // ── Sending messages ───────────────────────────────────────────────────────
+  function send(text) {
+    text = text.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    appendUser(text);
+    ws.send(JSON.stringify({ type: 'message', text }));
+    inputEl.value = '';
+    sendBtn.disabled = true;
+    waiting = false;
+    setStatus('thinking', 'Thinking…');
+  }
+
+  sendBtn.addEventListener('click', () => send(inputEl.value));
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inputEl.value); }
+  });
+
+  // ── Map polling ───────────────────────────────────────────────────────────
+  let lastMtime = null;
+  async function pollMap() {
+    try {
+      const res = await fetch('/api/map-mtime');
+      const { mtime } = await res.json();
+      if (mtime && mtime !== lastMtime) {
+        if (lastMtime !== null) {
+          refreshMap();
+          appendMapNotice('Map updated — panel refreshed');
+        }
+        lastMtime = mtime;
+      }
+    } catch (_) {}
+  }
+  setInterval(pollMap, 2000);
+  pollMap();
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  connect();
+</script>
+</body>
+</html>

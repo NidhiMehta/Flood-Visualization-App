@@ -1,0 +1,18 @@
+# FloodWatch — LangChain version
+# Python >= 3.10 required (3.14.x used in development)
+
+# LangChain framework
+langchain>=1.3.0
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0
+
+# Web server
+fastapi>=0.128.0
+uvicorn>=0.40.0
+
+# SSL certificates (required on macOS for urllib HTTPS calls)
+certifi>=2026.01.04
+
+# Ollama server must be running locally with qwen3.5:9b pulled:
+#   ollama pull qwen3.5:9b
+#   ollama serve

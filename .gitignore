@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+cache/
+conversation_history.json
+flood_map.html
+flood_map_historical.html
+.env
